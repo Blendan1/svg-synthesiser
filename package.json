@@ -1,0 +1,19 @@
+{
+  "name": "svg-vectorscope",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "svg-path-properties": "^1.2.0",
+    "svgo": "^3.0.2",
+    "wavefile": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.2.5"
+  }
+}
