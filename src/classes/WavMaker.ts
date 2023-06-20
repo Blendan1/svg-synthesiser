@@ -1,7 +1,7 @@
 import {SvgLoader} from "./SvgLoader";
 import {WaveFile} from "wavefile";
 import {Point} from "svg-path-properties/dist/types/types";
-import * as fs from "fs";
+import ProgressBar from "progress";
 
 export class WavMaker {
     constructor(private svgList: SvgLoader[]) {
@@ -12,11 +12,9 @@ export class WavMaker {
             return 0;
         }
 
-        const value = (cord / divider) - 1;
-        // f * time
-        const result = (Math.asin(value) / 2 * Math.PI);
-        const sample = result * (divider * 10)
-        return parseFloat(sample.toFixed(8));
+        const value = ((cord / divider) - 1) * divider;
+        return (((Math.pow(2, 16) - 1)) * Math.sin( (Math.PI * 2) * value / 41000)) * 5
+        //return (Math.asin(value) + Math.asin(value));
     }
 
     /**
@@ -34,7 +32,10 @@ export class WavMaker {
         return divider
     }
 
-    public make(sampleRate = 41000, fps = 24) {
+    public make({fps = 24, sampleRate = 41000}: {
+        fps?: number,
+        sampleRate?: number,
+    }) {
         const wav = new WaveFile();
 
         const samples: { l: number[], r: number[] } = {
@@ -50,11 +51,14 @@ export class WavMaker {
         const points: { time: number, point: Point }[] = [];
         let biggestX = 0, biggestY = 0;
 
-        this.svgList.forEach((svg, i) => {
-            let frameTime = 0;
+        const progress = new ProgressBar(":bar :percent :eta s", {total: this.svgList.length});
+
+        this.svgList.forEach((svg) => {
+            let frameTime = time % timePerFrame;
+            const frame = svg.loadSvg();
             while (frameTime < timePerFrame) {
                 const percent = frameTime / timePerFrame;
-                const point = svg.getPointAtPercent(percent);
+                const point = frame.getPointAtPercent(percent);
 
                 points.push({point, time});
 
@@ -68,26 +72,48 @@ export class WavMaker {
 
                 time += timePerSample;
                 frameTime += timePerSample;
-
             }
+
+            progress.tick();
         });
 
         const dividerX = this.normalizeScale(biggestX);
         const dividerY = this.normalizeScale(biggestY);
-
 
         points.forEach(({time, point}) => {
             samples.l.push(this.calculateSample(point.x, time, dividerX));
             samples.r.push(-this.calculateSample(point.y, time, dividerY));
         });
 
-        console.log(samples.l[12]);
-        wav.fromScratch(2, sampleRate, "16", [
+        wav.fromScratch(2, sampleRate, "16", this.normalizeSamples([
             samples.l,
             samples.r,
-        ]);
+        ], sampleRate / 2));
 
         return wav.toBuffer();
+    }
+
+    private normalizeSamples(samples: number[][], max = 10000): number[][] {
+        let maxSample = 0;
+        const out: number[][] = []
+
+        samples.forEach(p => p.forEach(s => {
+            if (Math.abs(s) > maxSample) {
+                maxSample = Math.abs(s);
+            }
+        }));
+
+        samples.forEach(p => {
+            out.push([]);
+            p.forEach(s => {
+                const percent = s / maxSample;
+                out[out.length - 1].push(percent * max);
+            });
+        });
+
+        console.log(maxSample)
+
+        return samples;
     }
 
 }

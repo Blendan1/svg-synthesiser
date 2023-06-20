@@ -3,7 +3,7 @@ import * as fs from "fs";
 import {SvgLoader} from "./src/classes/SvgLoader";
 import {WavMaker} from "./src/classes/WavMaker";
 
-const inputFolder = "./vector-uvs"
+const inputFolder = "./test/vector-uvs"
 
 const folder = fs.readdirSync(inputFolder);
 
@@ -13,11 +13,11 @@ for (const file of folder) {
         svgList.push(new SvgLoader(path.join(inputFolder, file)));
     }
 }
-fs.writeFileSync("out.svg", svgList[100].toSvgFile())
+
 
 if (svgList.length > 0) {
     const wavMaker = new WavMaker(svgList);
 
-    fs.writeFileSync("out.wav", wavMaker.make());
+    fs.writeFileSync("out.wav", wavMaker.make({fps: 24}));
 }
 

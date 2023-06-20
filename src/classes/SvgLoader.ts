@@ -1,50 +1,49 @@
-import {readFileSync} from "fs";
-import {optimize} from "svgo";
 import {svgPathProperties} from "svg-path-properties";
 import {Properties} from "svg-path-properties/src/types";
 import * as fs from "fs";
-import {SvgPathPoint} from "../interfaces/SvgPathPoint";
+import SVGParser from "convertpath"
+import {toPath, toPoints} from "svg-points";
+import {Point} from "svg-path-properties/dist/types/types";
+import {Svg} from "./Svg";
+import {GroupData, GroupPoint, TDirection} from "../interfaces/GroupPoint";
 
 export class SvgLoader {
-    private svgPath!: string;
-    private properties: Properties;
+
+    private static LastPoint: GroupPoint;
 
     constructor(private src: string) {
-        this._loadSvg();
     }
 
-    public getPointAtPercent(percent: number) {
-        const length = this.properties.getTotalLength();
-        return this.properties.getPointAtLength(percent == 0 ? 0 : length * percent);
-    }
 
-    private _loadSvg() {
-        const svgFile = readFileSync(this.src, {encoding: "utf8"})
-        const svg = optimize(svgFile, {
-            js2svg: {
-                pretty: false,
-            },
-            multipass: false,
-        }).data;
+    loadSvg() {
+        const svgFile = SVGParser.parse(this.src, {
+            plugins: [
+                {
+                    convertShapeToPath: true,
+                },
+                {
+                    removeGroups: true,
+                },
+                {
+                    convertTransformforPath: false,
+                }
+            ]
+        });
 
-        if(this.src.includes("00100.")) {
-            fs.writeFileSync("test1.svg", svg);
+        const svgPath = SvgLoader.ConvertToSinglePath(svgFile.toSimpleSvg());
+
+        if (/0001\.svg/.test(this.src)) {
+            fs.writeFileSync("test.svg", SvgLoader.ToSvgFile(svgPath));
         }
 
-        this.svgPath = SvgLoader.ConvertToSinglePath(svg);
-
-
         try {
-            this.properties = new svgPathProperties(this.svgPath) as Properties;
+            return new Svg(new svgPathProperties(svgPath) as Properties);
         } catch (e) {
-            fs.writeFileSync("error.svg", this.toSvgFile());
+            fs.writeFileSync("error.svg", SvgLoader.ToSvgFile(svgPath));
             throw e
         }
     }
 
-    public toSvgFile() {
-        return SvgLoader.ToSvgFile(this.svgPath);
-    }
 
     public static ToSvgFile(path: string) {
         return `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000">
@@ -53,8 +52,8 @@ export class SvgLoader {
                 </svg>`;
     }
 
-    public static ConvertToSinglePath(svg) {
-        const match = /(?<=d=").+?"/gmi[Symbol.match](svg).map(v => {
+    public static ConvertToSinglePath(svg: string) {
+        const match = /(?<=d=").+?"/gmi[Symbol.match](svg)?.map(v => {
             v = v.replace(/"$/, "");
 
             v = v.replace(/(?<first>\d*\.\d+)(?<next>\.\d+)/g, `$<first> $<next>`)
@@ -66,7 +65,7 @@ export class SvgLoader {
 
             const split = v.split("z");
 
-            const parts = [];
+            const parts: string[] = [];
             split.forEach((part, i) => {
                 if (!part) {
                     return;
@@ -74,8 +73,8 @@ export class SvgLoader {
                 if (split[i + 1] != null) {
                     try {
 
-                        const cords = /^[Mm](?<cords>[-\s]?\d*\.?\d+[-\s]\d*\.?\d+)/[Symbol.match](part).groups["cords"];
-                        if (cords.trim()) {
+                        const cords = /^[Mm](?<cords>[-\s]?\d*\.?\d+[-\s]\d*\.?\d+)/[Symbol.match](part)?.groups?.["cords"];
+                        if (cords?.trim()) {
                             part += " L" + cords;
                         }
                         parts.push(part);
@@ -95,52 +94,228 @@ export class SvgLoader {
             return v;
         })
 
-        return match.join(" ");
+        return this.removeDuplicatePoints(match?.join(" ") || "");
+    }
+
+    private static getPointGroups(points: GroupPoint[]) {
+        const groups: GroupData[] = [];
+        points.forEach(p => {
+            if (p.moveTo || groups.length == 0) {
+                groups.push({data: [], Index: 0});
+            }
+            groups[groups.length - 1].data.push(p as any);
+        });
+
+        groups.forEach((g, i) => {
+            g.Index = i;
+        });
+
+        return groups.filter(g => g.data.length > 0);
+    }
+
+    private static SortPointsByGroup(points: GroupPoint[], lastPoint?: GroupPoint, stack: number | false = 0): GroupPoint[] {
+        const groups = this.getPointGroups(points);
+
+        const pointsSorted: GroupPoint[] = [];
+
+        function getDistance(a: GroupPoint, b: GroupPoint) {
+            const x = Math.abs(a.x - b.x);
+            const y = Math.abs(b.y - b.y);
+            return Math.sqrt(x * x + y * y);
+        }
+
+        function addGroup(groups: GroupData[], now: GroupData, startGroup = false, direction: TDirection = "r") {
+            let closest = Infinity;
+            let closestGroup: GroupData | undefined = undefined;
+
+            if (!startGroup) {
+                const index = groups.findIndex(e => e.Index == now.Index);
+                if (index < 0) {
+                    console.log(now, groups)
+                    throw new Error()
+                } else {
+                    groups.splice(index, 1);
+                }
+            }
+
+            let zeroCount = [], isReverse = false;
+            const last = now.data[now.data.length - 1];
+            for (let group of groups) {
+                const distance = getDistance(group.data[0], last);
+                const reverseDistance = getDistance(group.data[group.data.length - 1], last)
+
+                if (distance == 0 || reverseDistance == 0) {
+                    if (distance == 0) {
+                        isReverse = false;
+                    } else if (reverseDistance == 0) {
+                        isReverse = true;
+                    }
+
+                    zeroCount.push({group, isReverse});
+                }
+
+                if ((reverseDistance == 0 ? 0 : distance) < closest) {
+                    closestGroup = group;
+                    closest = reverseDistance == 0 ? 0 : distance;
+                }
+            }
+
+            if (zeroCount.length > 1) {
+                function isIndirection(g: GroupData, isReverse: boolean) {
+                    const point = g.data[(!isReverse ? g.data.length - 1 : 0)];
+
+                    switch (direction) {
+                        case "r":
+                            return point.x > last.x;
+                        case "l":
+                            return point.x < last.x;
+                        case "t":
+                            return point.y > last.y;
+                        case "b":
+                            return point.y < last.y;
+                    }
+                }
+
+                const directionLoop: TDirection[] = ["r", "t", "l", "b"];
+
+                while (!zeroCount.some(g => isIndirection(g.group, g.isReverse))) {
+                    let index = directionLoop.indexOf(direction);
+                    index++;
+
+                    if (index >= directionLoop.length) {
+                        index = 0;
+                    }
+
+                    direction = directionLoop[index];
+                }
+
+                let closest = Infinity;
+                zeroCount.filter(g => isIndirection(g.group, g.isReverse))
+                    .forEach(g => {
+                        const point = g.group.data[(!g.isReverse ? g.group.data.length - 1 : 0)];
+
+                        const distance = getDistance(last, point);
+
+                        if (distance < closest) {
+                            closest = distance;
+                            closestGroup = g.group;
+                            isReverse = g.isReverse;
+                        }
+                    });
+            }
+
+            if (closestGroup) {
+                if (closest == 0 && !isReverse && !startGroup) {
+                    closestGroup.data[0].moveTo = false;
+                } else if (closest == 0 && isReverse) {
+                    closestGroup.data[0].moveTo = false;
+                    const index = groups.indexOf(closestGroup as any);
+                    closestGroup.data = closestGroup.data.reverse();
+                    if (startGroup) {
+                        closestGroup.data[0].moveTo = true;
+                    }
+                    groups.splice(index, 1, closestGroup);
+                }
+            }
+
+            if (!startGroup) {
+                pointsSorted.push(...now.data);
+            }
+
+            if (closestGroup) {
+                addGroup(groups, closestGroup, false, direction);
+            } else if (stack === 0) {
+                SvgLoader.LastPoint = last;
+            }
+        }
+
+        if (!SvgLoader.LastPoint && !lastPoint) {
+            addGroup(groups, groups[0]);
+        } else {
+            addGroup(groups, {
+                data: [lastPoint || SvgLoader.LastPoint],
+                Index: -1,
+            }, true);
+        }
+
+        if (stack !== false && stack < 5) {
+            const newGroups = this.getPointGroups(pointsSorted);
+
+            for (let group of newGroups) {
+
+                const last = group.data[group.data.length - 1];
+                let zeroCount = 0;
+                for (let g of newGroups) {
+                    if (g == group) {
+                        continue;
+                    }
+
+                    const distance = getDistance(g.data[0], last);
+                    const reverseDistance = getDistance(g.data[g.data.length - 1], last);
+
+                    if (distance == 0 || reverseDistance == 0) {
+                        zeroCount++;
+                    }
+                }
+
+                if (zeroCount == 1) {
+                    if (this.LastPoint) {
+                        return this.SortPointsByGroup(this.SortPointsByGroup(pointsSorted, group.data[0], stack + 1), this.LastPoint, false);
+                    } else {
+                        return this.SortPointsByGroup(pointsSorted, group.data[0], stack + 1);
+                    }
+                }
+            }
+        }
+
+        return pointsSorted;
     }
 
     private static removeDuplicatePoints(pathString: string) {
-        const cords = /[MmLl]?[-\s]?\d*\.\d+[-\s]?\d*\.\d+/g[Symbol.match](pathString);
+        function compareCords(a: Point, b: Point) {
+            return a.x === b.x && a.y === b.y;
+        }
 
-        const path: SvgPathPoint[] = [];
+        function compareLines(a: Point[], b: Point[]): boolean {
+            return (compareCords(a[0], b[0]) && compareCords(a[1], b[1]))
+                || (compareCords(a[1], b[0]) && compareCords(a[0], b[1]))
+        }
 
-        cords.forEach(cord => {
-            const prefixRegex = /^[MmLl]/;
-            const relativeRegex = /^[ml]/;
+        const points: (Point & { moveTo: boolean })[] = toPoints({
+            type: "path",
+            d: pathString
+        }) as any;
 
-            const p: SvgPathPoint = {
-                prefix: prefixRegex.test(cord) ? cord[0] : undefined ,
-                isRelative: relativeRegex.test(cord),
-                x: 0,
-                y: 0
-            };
+        const lines: GroupPoint[][] = [];
+        let lastPoint: GroupPoint;
+        const toRemove: GroupPoint[] = [];
+        points.forEach(p => {
+            if (!lastPoint || p.moveTo) {
+                if (lastPoint?.moveTo) {
+                    toRemove.push(lastPoint);
+                }
 
-            const match = cord.replace(prefixRegex, "").match(/[-\s]?\d*\.\d+/g);
+                lastPoint = p;
+            } else if (compareCords(lastPoint, p)) {
+                toRemove.push(p);
+            } else {
+                const newCords = [lastPoint, p];
+                const found = lines.find(v => compareLines(v, newCords));
 
-            p.x = parseFloat(match[0]);
-            p.y = parseFloat(match[1]);
+                if (found) {
+                    if (lastPoint.moveTo) {
+                        toRemove.push(lastPoint);
+                    }
 
-            path.push(p);
-        });
-
-        let lastAbsolute: SvgPathPoint;
-        path.forEach(p => {
-            if(!p.isRelative) {
-                lastAbsolute = p;
-            } else if(lastAbsolute) {
-                p.x += lastAbsolute.x;
-                p.y += lastAbsolute.y;
-                p.isRelative = false;
-                p.prefix = p.prefix?.toUpperCase();
-
-                lastAbsolute = p;
-            } else if(path.indexOf(p) == 0) {
-                p.isRelative = false;
-                p.prefix = p.prefix?.toUpperCase();
-
-                lastAbsolute = p;
+                    p.moveTo = true;
+                } else {
+                    lines.push(newCords);
+                }
+                lastPoint = p;
             }
-        });
+        })
 
-        return path.map(p => `${p.prefix || ""} ${p.x} ${p.y}`).join(" ");
+
+        return toPath(this.SortPointsByGroup(points.filter(p => !toRemove.includes(p))) as any[]);
     }
 }
