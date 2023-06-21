@@ -1,7 +1,10 @@
 {
-  "name": "svg-vectorscope",
+  "name": "svg-synthesyser",
   "version": "1.0.0",
   "description": "",
+  "repository": {
+    "url": "https://github.com/Blendan1/svg-synthesyser.git"
+  },
   "main": "index.js",
   "scripts": {
     "test": "node index.js"
@@ -13,7 +16,6 @@
     "progress": "^2.0.3",
     "svg-path-properties": "^1.2.0",
     "svg-points": "^6.0.1",
-    "svgo": "^3.0.2",
     "wavefile": "^11.0.0"
   },
   "devDependencies": {

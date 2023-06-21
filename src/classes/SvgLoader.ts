@@ -32,10 +32,6 @@ export class SvgLoader {
 
         const svgPath = SvgLoader.ConvertToSinglePath(svgFile.toSimpleSvg());
 
-        if (/0001\.svg/.test(this.src)) {
-            fs.writeFileSync("test.svg", SvgLoader.ToSvgFile(svgPath));
-        }
-
         try {
             return new Svg(new svgPathProperties(svgPath) as Properties);
         } catch (e) {
@@ -120,7 +116,7 @@ export class SvgLoader {
 
         function getDistance(a: GroupPoint, b: GroupPoint) {
             const x = Math.abs(a.x - b.x);
-            const y = Math.abs(b.y - b.y);
+            const y = Math.abs(a.y - b.y);
             return Math.sqrt(x * x + y * y);
         }
 
@@ -259,7 +255,7 @@ export class SvgLoader {
                 }
 
                 if (zeroCount == 1) {
-                    if (this.LastPoint) {
+                    if (this.LastPoint && stack == 0) {
                         return this.SortPointsByGroup(this.SortPointsByGroup(pointsSorted, group.data[0], stack + 1), this.LastPoint, false);
                     } else {
                         return this.SortPointsByGroup(pointsSorted, group.data[0], stack + 1);
