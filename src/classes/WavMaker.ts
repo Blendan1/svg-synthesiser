@@ -3,6 +3,7 @@ import {WaveFile} from "wavefile";
 import {Point} from "svg-path-properties/dist/types/types";
 import ProgressBar from "progress";
 import {WavMakerOptions} from "../interfaces/WavMakerOptions";
+import * as fs from "fs";
 
 export class WavMaker {
 
@@ -36,11 +37,17 @@ export class WavMaker {
 
         const progress = new ProgressBar(":bar :percent :eta s", {total: this.svgList.length});
 
-        this.svgList.forEach((svg) => {
+        this.svgList.forEach((svg, i) => {
             let frameTime = time % timePerFrame;
             const frame = svg.loadSvg();
+            const frameNext = this.svgList[i + 1]?.loadSvg();
+
             while (frameTime < timePerFrame) {
-                const percent = ((frameTime / timePerFrame) * frameSpeed) % 1;
+                let percent = ((frameTime / timePerFrame) * frameSpeed);
+
+                // makes it loop and reverse 0 -> 1 -> 0 -> 1 -> ...
+                percent = Math.floor(percent) % 2 ? percent % 1 : 1 - (percent % 1);
+
                 const point = frame.getPointAtPercent(percent);
 
                 points.push({point, time});
@@ -57,6 +64,7 @@ export class WavMaker {
                 frameTime += timePerSample;
             }
 
+            svg.dispose();
             progress.tick();
         });
 
@@ -66,8 +74,14 @@ export class WavMaker {
         let lastX: Point, lastY: Point;
         points.forEach(({time, point}) => {
             if (lastX && lastY && false) {
-                samples.l.push(helper.frequencyToSample(helper.calculateBetweenFrequency(lastX, {x: point.x, y: time}, dividerX)));
-                samples.r.push(-helper.frequencyToSample(helper.calculateBetweenFrequency(lastY, {x: point.y, y: time}, dividerY)));
+                samples.l.push(helper.frequencyToSample(helper.calculateBetweenFrequency(lastX, {
+                    x: point.x,
+                    y: time
+                }, dividerX)));
+                samples.r.push(-helper.frequencyToSample(helper.calculateBetweenFrequency(lastY, {
+                    x: point.y,
+                    y: time
+                }, dividerY)));
             } else {
                 samples.l.push(helper.calculateSample(point.x, time, dividerX));
                 samples.r.push(-helper.calculateSample(point.y, time, dividerY));
@@ -88,8 +102,12 @@ export class WavMaker {
             samples.l,
             samples.r,
         ]);
+        const buffer = wav.toBuffer();
+        if (options.outPath) {
+            fs.writeFileSync(options.outPath, buffer);
+        }
 
-        return wav.toBuffer();
+        return buffer;
     }
 }
 
@@ -108,7 +126,7 @@ class WavMakerHelper {
 
 
     public frequencyToSample(value: number) {
-        return (((Math.pow(2, 16) - 1)) * Math.sin((Math.PI * 2) * value / this.options.sampleRate!)) * 5
+        return (((Math.pow(2, 16) - 1)) * Math.sin((Math.PI * 2) * value / this.options.sampleRate!)) * 10
     }
 
     public calculateBetweenFrequency(a: Point, b: Point, divider: number) {

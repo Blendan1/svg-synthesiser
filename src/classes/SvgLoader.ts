@@ -1,21 +1,35 @@
-import {svgPathProperties} from "svg-path-properties";
-import {Properties} from "svg-path-properties/src/types";
 import * as fs from "fs";
 import SVGParser from "convertpath"
 import {toPath, toPoints} from "svg-points";
 import {Point} from "svg-path-properties/dist/types/types";
 import {Svg} from "./Svg";
 import {GroupData, GroupPoint, TDirection} from "../interfaces/GroupPoint";
+import path from "path";
 
 export class SvgLoader {
 
     private static LastPoint: GroupPoint;
-
+    private _loaded?: Svg;
     constructor(private src: string) {
+    }
+
+    public static RegisterFolder(folderPath: string) {
+        const folder = fs.readdirSync(folderPath);
+        const svgList: SvgLoader[] = []
+        for (const file of folder) {
+            if (/\.svg$/.test(file)) {
+                svgList.push(new SvgLoader(path.join(folderPath, file)));
+            }
+        }
+        return svgList;
     }
 
 
     loadSvg() {
+        if(this._loaded) {
+            return this._loaded;
+        }
+
         const svgFile = SVGParser.parse(this.src, {
             plugins: [
                 {
@@ -33,11 +47,15 @@ export class SvgLoader {
         const svgPath = SvgLoader.ConvertToSinglePath(svgFile.toSimpleSvg());
 
         try {
-            return new Svg(new svgPathProperties(svgPath) as Properties);
+            return this._loaded =  new Svg(svgPath);
         } catch (e) {
             fs.writeFileSync("error.svg", SvgLoader.ToSvgFile(svgPath));
             throw e
         }
+    }
+
+    dispose() {
+        delete this._loaded;
     }
 
 

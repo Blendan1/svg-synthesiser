@@ -1,12 +1,16 @@
 import {Properties} from "svg-path-properties/src/types";
-
+import {svgPathProperties} from "svg-path-properties";
 export class Svg {
-    constructor(private properties: Properties) {
-
+    private readonly properties: Properties;
+    constructor(public svgPath: string) {
+        this.properties = new svgPathProperties(svgPath) as Properties;
     }
 
     public getPointAtPercent(percent: number) {
-        const length = this.properties.getTotalLength();
-        return this.properties.getPointAtLength(percent == 0 ? 0 : length * percent);
+        let properties = this.properties;
+
+        const length = properties.getTotalLength();
+        return properties.getPointAtLength(percent == 0 ? 0 : length * percent);
     }
+
 }
