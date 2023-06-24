@@ -45,7 +45,6 @@ export class WavMaker {
         this.svgList.forEach((svg, i) => {
             let frameTime = time % timePerFrame;
             const frame = svg.loadSvg();
-            const frameNext = this.svgList[i + 1]?.loadSvg();
 
             while (frameTime < timePerFrame) {
                 let percent = ((frameTime / timePerFrame) * options.frameSpeed!);
