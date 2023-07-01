@@ -1,10 +1,10 @@
 #! /usr/bin/env node
 
 import {program} from 'commander';
-import {Watch} from "./commands/watch";
+import {Blender} from "./commands/blender";
 
 const commands = [
-    Watch
+    Blender
 ];
 
 program.name("svs-cli");

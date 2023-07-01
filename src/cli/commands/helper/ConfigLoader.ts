@@ -1,7 +1,7 @@
 import * as fs from "fs";
 
 export class ConfigLoader<T extends LoadableConfig> {
-    constructor(private getDefaultPath: () => string, private options: T) {
+    constructor(private getDefaultPath: () => string, private options: T, private toSkip: string[] = []) {
     }
 
     load(): T {
@@ -14,7 +14,13 @@ export class ConfigLoader<T extends LoadableConfig> {
 
             try {
                 const file = fs.readFileSync(path, {encoding: "utf8"});
-                return JSON.parse(file) as T;
+                const options = JSON.parse(file) as T;
+
+                for (let key of this.toSkip) {
+                    (options as any)[key] = (this.options as any)[key];
+                }
+
+                return options;
             } catch {
                 throw new Error("Error parsing config json at: " + path);
             }
@@ -27,7 +33,7 @@ export class ConfigLoader<T extends LoadableConfig> {
         if (this.options.write) {
             const out: any = {};
 
-            const skip = ["read", "write"];
+            const skip = ["read", "write", ...this.toSkip];
 
             for (let key in this.options) {
                 if (!skip.includes(key)) {

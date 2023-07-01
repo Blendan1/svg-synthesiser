@@ -47,6 +47,9 @@ def run():
     # Set the camera view
     # bpy.ops.view3d.camera_to_view()
 
+    print("Frames: " + str(scn.frame_start) + "; " + str(scn.frame_end))
+    print("Fps: " + str(scn.render.fps))
+
     for frame in range(scn.frame_start, scn.frame_end + 1):
         scn.frame_set(frame)
         run_for_frame(obj, frame)
@@ -67,3 +70,4 @@ with bpy.context.temp_override(area=area3D,region=regionWindow):
     bpy.context.view_layer.objects.active = obj
     obj.select_set(True)
     run()
+    print("RESULT GOOD")

@@ -10,10 +10,10 @@ export class SvgLoader {
 
     private static LastPoint: GroupPoint;
     private _loaded?: Svg;
-    constructor(private src: string) {
+    constructor(private src?: string) {
     }
 
-    public static RegisterFolder(folderPath: string) {
+    public static RegisterFolder(folderPath: string, startFrame?: number, endFrame?: number) {
         const folder = fs.readdirSync(folderPath);
         const svgList: SvgLoader[] = []
         for (const file of folder) {
@@ -21,6 +21,36 @@ export class SvgLoader {
                 svgList.push(new SvgLoader(path.join(folderPath, file)));
             }
         }
+
+        if(startFrame != null) {
+            const firstFrame =  !!folder[0] && parseInt(folder[0].split("_")[1]);
+
+            if(firstFrame != startFrame) {
+                let diff = 0;
+                if(firstFrame === false) {
+                    if(endFrame != null) {
+                        diff = endFrame - startFrame;
+                        endFrame = undefined;
+                    }
+                } else {
+                    diff = firstFrame - startFrame;
+                }
+
+                for (let i = 0; i < diff; i++) {
+                    svgList.unshift(new SvgLoader());
+                }
+            }
+        }
+
+        if(endFrame != null) {
+            const lastFrame =  parseInt(folder[folder.length - 1].split("_")[1]);
+
+            const diff = endFrame - lastFrame;
+            for (let i = 0; i < diff; i++) {
+                svgList.push(new SvgLoader());
+            }
+        }
+
         return svgList;
     }
 
@@ -29,6 +59,11 @@ export class SvgLoader {
         if(this._loaded) {
             return this._loaded;
         }
+
+        if(!this.src) {
+            return this._loaded = new Svg("M0 0");
+        }
+
 
         const svgFile = SVGParser.parse(this.src, {
             plugins: [

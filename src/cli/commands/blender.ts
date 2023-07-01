@@ -5,50 +5,57 @@ import {ConfigLoader, LoadableConfig} from "./helper/ConfigLoader";
 
 const filewatcher = require('filewatcher');
 
-export const Watch: CliCommand = {
+export const Blender: CliCommand = {
     Call(file: string, options: WatchOptions) {
         let isRunning = false;
 
         const configLoader = new ConfigLoader(() => {
             return file + ".json";
-        }, options);
+        }, options, ["watch"]);
 
-        if(configLoader.write()) {
+        if (configLoader.write()) {
             process.exit();
         }
 
         options = configLoader.load();
 
-        function Run() {
+        async function Run() {
             isRunning = true;
 
-            //TODO read fps from blend file
-            BlenderLoader.Run(file, options.selection, options.temp);
-            new WavMaker(SvgLoader.RegisterFolder(options.temp))
+            const blendOptions = BlenderLoader.Run(file, options.selection, options.temp);
+            await new WavMaker(SvgLoader.RegisterFolder(options.temp))
                 .make({
                     multiplier: parseFloat(options.multiplier),
-                    outPath: options.out
+                    outPath: options.out,
+                    fps: options.fps ? parseInt(options.fps) : blendOptions.fps,
                 });
+            console.log(`[WavMaker] ${options.out} created`);
 
 
             if (options.cleanup) {
                 fs.rmSync(options.temp, {recursive: true});
+                console.log(`[INFO] ${options.temp} deleted`);
             }
+
 
             isRunning = false;
         }
 
-        const watcher = filewatcher();
-        watcher.add(file);
-        watcher.on('change', function (file: string, stat: any) {
-            if (stat && !isRunning) {
-                Run();
-            }
-        });
+        if (options.watch) {
+            console.log("[FileWatcher] Started")
+            const watcher = filewatcher();
+            watcher.add(file);
+            watcher.on('change', function (file: string, stat: any) {
+                if (stat && !isRunning) {
+                    console.log("[FileWatcher] Changes Found")
+                    Run();
+                }
+            });
+        }
         Run();
     },
 
-    Name: "watch",
+    Name: "blender",
 
     Arguments: [
         {type: "<file path>", description: "path to the .blend file to watch"},
@@ -88,6 +95,11 @@ export const Watch: CliCommand = {
         },
 
         {
+            type: "--watch",
+            description: "watches for file changes and reruns on changes"
+        },
+
+        {
             type: "-r, --read [path]",
             description: "read a config file and use that as options (default: path to .blend file + .json => ./test.blend => ./test.blend.json)"
         },
@@ -106,4 +118,5 @@ interface WatchOptions extends LoadableConfig {
     fps?: string;
     multiplier: string;
     cleanup: boolean;
+    watch: boolean;
 }
