@@ -1,13 +1,24 @@
 import {CliCommand} from "../../interfaces/cli/CliCommand";
 import {BlenderLoader, SvgLoader, WavMaker} from "../../classes";
 import * as fs from "fs";
+import {ConfigLoader, LoadableConfig} from "./helper/ConfigLoader";
 
 const filewatcher = require('filewatcher');
 
 export const Watch: CliCommand = {
     Call(file: string, options: WatchOptions) {
         let isRunning = false;
-        console.log(options)
+
+        const configLoader = new ConfigLoader(() => {
+            return file + ".json";
+        }, options);
+
+        if(configLoader.write()) {
+            process.exit();
+        }
+
+        options = configLoader.load();
+
         function Run() {
             isRunning = true;
 
@@ -20,7 +31,7 @@ export const Watch: CliCommand = {
                 });
 
 
-            if(options.cleanup) {
+            if (options.cleanup) {
                 fs.rmSync(options.temp, {recursive: true});
             }
 
@@ -68,18 +79,27 @@ export const Watch: CliCommand = {
             type: "-m, --multiplier <number>",
             description: "Value used to multiple frameSpeed and sampleRate, will reduce flickering if higher",
             default: "1"
-        }
+        },
 
-        ,
+
         {
             type: "-c, --cleanup",
             description: "use flag to remove temp files after wav build",
+        },
+
+        {
+            type: "-r, --read [path]",
+            description: "read a config file and use that as options (default: path to .blend file + .json => ./test.blend => ./test.blend.json)"
+        },
+        {
+            type: "-w, --write [path]",
+            description: "writes a config file to be used as options, will stop after writing file (default: path to .blend file + .json => ./test.blend => ./test.blend.json)"
         }
 
     ],
 }
 
-interface WatchOptions {
+interface WatchOptions extends LoadableConfig {
     selection: string;
     temp: string;
     out: string;

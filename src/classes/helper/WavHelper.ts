@@ -15,7 +15,7 @@ export class WavMakerHelper {
 
 
     public frequencyToSample(value: number) {
-        return (((Math.pow(2, 16) - 1)) * Math.sin((Math.PI * 2) * value / this.options.sampleRate!)) * 10
+        return (((Math.pow(2, 16) - 1)) * Math.sin((Math.PI * 2) * value / this.options.sampleRate!)) * 5 * (this.options.multiplier || 1)
     }
 
     public calculateBetweenFrequency(a: Point, b: Point, divider: number) {
