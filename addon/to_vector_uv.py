@@ -5,6 +5,7 @@ import sys
 argv = sys.argv
 argv = argv[argv.index("--") + 1:]  # get all args after "--"
 
+
 def run_for_frame(obj, index):
     out = bpy.path.abspath(f"{argv[0]}/frame_{str(index).zfill(8)}.svg")
     # Set the active object
@@ -27,7 +28,8 @@ def run_for_frame(obj, index):
     if bpy.ops.uv.project_from_view.poll():
         # Unwrap the object using Project from View
         # bpy.ops.uv.cube_project()
-        bpy.ops.uv.project_from_view(orthographic=False, camera_bounds=False, correct_aspect=False, scale_to_bounds=False)
+        bpy.ops.uv.project_from_view(orthographic=False, camera_bounds=False, correct_aspect=False,
+                                     scale_to_bounds=False)
 
         # Export the UV coordinates as SVG
         bpy.ops.uv.export_layout(filepath=out, export_all=True, modified=True, mode="SVG")
@@ -63,8 +65,11 @@ for region in area3D.regions:
     if region.type == 'WINDOW':
         regionWindow = region
 
-with bpy.context.temp_override(area=area3D,region=regionWindow):
+with bpy.context.temp_override(area=area3D, region=regionWindow):
     bpy.ops.object.select_all(action='DESELECT')
+
+    area3D.spaces[0].region_3d.view_perspective = 'CAMERA'
+    bpy.ops.view3d.view_center_camera()
 
     obj = bpy.data.objects[argv[1]]
     bpy.context.view_layer.objects.active = obj
