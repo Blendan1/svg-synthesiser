@@ -38,5 +38,7 @@ export interface WavMakerOptions {
     /**
      * Value used to multiple {@link frameSpeed} and {@link sampleRate}
      */
-    multiplier?: number
+    multiplier?: number,
+
+    threads?: number
 }

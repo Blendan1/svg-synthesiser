@@ -14,16 +14,34 @@ export class WavMaker {
     }
 
 
-    public make(options: WavMakerOptions) {
-        const wav = new WaveFile();
-
+    public async make(options: WavMakerOptions) {
         options = {...this.defaultOptions, ...options};
 
         if(options.multiplier) {
             options.sampleRate = options.sampleRate! * options.multiplier;
             options.frameSpeed = options.frameSpeed! * options.multiplier;
         }
+        const progress = new ProgressBar(":bar :percent :eta s", {total: this.svgList.length});
 
+        if(options.threads && options.threads > 1) {
+            const threads: Promise<void>[] = [];
+
+            const take = Math.ceil(this.svgList.length / options.threads);
+            let skip = 0;
+
+            while (skip < this.svgList.length) {
+                threads.push(SvgLoader.LoadAsync(this.svgList.slice(skip, skip + take), progress));
+                skip += take;
+            }
+
+            await Promise.all(threads);
+        }
+
+        return this.getBuffer(options, options.threads && options.threads > 1 ? undefined : progress);
+    }
+
+    private getBuffer(options: WavMakerOptions, progress?: ProgressBar) {
+        const wav = new WaveFile();
 
         const helper = new WavMakerHelper(options);
 
@@ -40,7 +58,6 @@ export class WavMaker {
         const points: { time: number, point: Point }[] = [];
         let biggestX = 0, biggestY = 0;
 
-        const progress = new ProgressBar(":bar :percent :eta s", {total: this.svgList.length});
 
         this.svgList.forEach((svg, i) => {
             let frameTime = time % timePerFrame;
@@ -69,7 +86,7 @@ export class WavMaker {
             }
 
             svg.dispose();
-            progress.tick();
+            progress?.tick();
         });
 
         const dividerX = helper.normalizeScale(biggestX);

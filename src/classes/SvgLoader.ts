@@ -5,11 +5,14 @@ import {Point} from "svg-path-properties/dist/types/types";
 import {Svg} from "./Svg";
 import {GroupData, GroupPoint, TDirection} from "../interfaces/GroupPoint";
 import path from "path";
+import {Worker} from "worker_threads";
+import ProgressBar from "progress";
 
 export class SvgLoader {
 
     private static LastPoint: GroupPoint;
     private _loaded?: Svg;
+
     constructor(private src?: string) {
     }
 
@@ -22,13 +25,13 @@ export class SvgLoader {
             }
         }
 
-        if(startFrame != null) {
-            const firstFrame =  !!folder[0] && parseInt(folder[0].split("_")[1]);
+        if (startFrame != null) {
+            const firstFrame = !!folder[0] && parseInt(folder[0].split("_")[1]);
 
-            if(firstFrame != startFrame) {
+            if (firstFrame != startFrame) {
                 let diff = 0;
-                if(firstFrame === false) {
-                    if(endFrame != null) {
+                if (firstFrame === false) {
+                    if (endFrame != null) {
                         diff = endFrame - startFrame;
                         endFrame = undefined;
                     }
@@ -42,8 +45,8 @@ export class SvgLoader {
             }
         }
 
-        if(endFrame != null) {
-            const lastFrame =  parseInt(folder[folder.length - 1].split("_")[1]);
+        if (endFrame != null) {
+            const lastFrame = parseInt(folder[folder.length - 1].split("_")[1]);
 
             const diff = endFrame - lastFrame;
             for (let i = 0; i < diff; i++) {
@@ -56,11 +59,11 @@ export class SvgLoader {
 
 
     loadSvg() {
-        if(this._loaded) {
+        if (this._loaded) {
             return this._loaded;
         }
 
-        if(!this.src) {
+        if (!this.src) {
             return this._loaded = new Svg("M0 0");
         }
 
@@ -82,11 +85,31 @@ export class SvgLoader {
         const svgPath = SvgLoader.ConvertToSinglePath(svgFile.toSimpleSvg());
 
         try {
-            return this._loaded =  new Svg(svgPath);
+            return this._loaded = new Svg(svgPath);
         } catch (e) {
             fs.writeFileSync("error.svg", SvgLoader.ToSvgFile(svgPath));
             throw e
         }
+    }
+
+    public static async LoadAsync(svgs: SvgLoader[], progress: ProgressBar) {
+        return new Promise<void>((r, e) => {
+            const worker = new Worker(path.join(__dirname, "worker/SvgWorker.js"), {
+                workerData: {
+                    src: svgs.map(s => s.src),
+                }
+            });
+            worker.on("message", ({paths, done}) => {
+                if (!done) {
+                    progress.tick()
+                } else {
+                    svgs.forEach((s, i) => {
+                        s._loaded = new Svg(paths[i]);
+                    })
+                    r();
+                }
+            });
+        })
     }
 
     dispose() {
@@ -173,14 +196,15 @@ export class SvgLoader {
             return Math.sqrt(x * x + y * y);
         }
 
+        let closestGroup: GroupData | undefined = undefined, lastDirection: TDirection = "r";
+
         function addGroup(groups: GroupData[], now: GroupData, startGroup = false, direction: TDirection = "r") {
             let closest = Infinity;
-            let closestGroup: GroupData | undefined = undefined;
+            closestGroup = undefined;
 
             if (!startGroup) {
                 const index = groups.findIndex(e => e.Index == now.Index);
                 if (index < 0) {
-                    console.log(now, groups)
                     throw new Error()
                 } else {
                     groups.splice(index, 1);
@@ -189,6 +213,7 @@ export class SvgLoader {
 
             let zeroCount = [], isReverse = false;
             const last = now.data[now.data.length - 1];
+
             for (let group of groups) {
                 const distance = getDistance(group.data[0], last);
                 const reverseDistance = getDistance(group.data[group.data.length - 1], last)
@@ -271,27 +296,30 @@ export class SvgLoader {
                 pointsSorted.push(...now.data);
             }
 
-            if (closestGroup) {
-                addGroup(groups, closestGroup, false, direction);
-            } else if (stack === 0) {
+            lastDirection = direction;
+            if (!closestGroup && stack === 0) {
                 SvgLoader.LastPoint = last;
             }
         }
 
         if (!SvgLoader.LastPoint && !lastPoint) {
-            addGroup(groups, groups[0]);
+            closestGroup = groups[0];
         } else {
-            addGroup(groups, {
+            closestGroup = {
                 data: [lastPoint || SvgLoader.LastPoint],
                 Index: -1,
-            }, true);
+            };
         }
 
-        if (stack !== false && stack < 5) {
+        let startGroup = true;
+        while (closestGroup) {
+            addGroup(groups, closestGroup, startGroup, lastDirection);
+            startGroup = false;
+        }
+
+        if (stack !== false && stack < 2) {
             const newGroups = this.getPointGroups(pointsSorted);
-
             for (let group of newGroups) {
-
                 const last = group.data[group.data.length - 1];
                 let zeroCount = 0;
                 for (let g of newGroups) {

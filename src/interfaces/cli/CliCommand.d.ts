@@ -7,7 +7,7 @@ export interface CliCommand {
 }
 
 interface OpOption extends ArgObj {
-    default?: string,
+    default?: any,
 }
 
 interface ArgObj {

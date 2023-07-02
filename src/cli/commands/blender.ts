@@ -18,7 +18,6 @@ export const Blender: CliCommand = {
         }
 
         options = configLoader.load();
-
         async function Run() {
             isRunning = true;
 
@@ -26,6 +25,7 @@ export const Blender: CliCommand = {
             await new WavMaker(SvgLoader.RegisterFolder(options.temp))
                 .make({
                     multiplier: parseFloat(options.multiplier),
+                    threads: parseInt(options.threads),
                     outPath: options.out,
                     fps: options.fps ? parseInt(options.fps) : blendOptions.fps,
                 });
@@ -87,6 +87,11 @@ export const Blender: CliCommand = {
             description: "Value used to multiple frameSpeed and sampleRate, will reduce flickering if higher",
             default: "1"
         },
+        {
+            type: "--threads <number>",
+            description: "use multiple threads for better performance",
+            default: "1"
+        },
 
 
         {
@@ -119,4 +124,5 @@ interface WatchOptions extends LoadableConfig {
     multiplier: string;
     cleanup: boolean;
     watch: boolean;
+    threads: string;
 }
