@@ -20,7 +20,7 @@ export class SvgLoader {
         const folder = fs.readdirSync(folderPath);
         const svgList: SvgLoader[] = []
         for (const file of folder) {
-            if (/\.svg$/.test(file)) {
+            if (/\.svg$/i.test(file)) {
                 svgList.push(new SvgLoader(path.join(folderPath, file)));
             }
         }

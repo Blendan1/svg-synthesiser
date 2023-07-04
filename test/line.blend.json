@@ -1,0 +1,8 @@
+{
+   "selection": "line",
+   "temp": "./vector-uvs",
+   "out": "./line.wav",
+   "multiplier": "4",
+   "threads": "4",
+   "cleanup": true
+}

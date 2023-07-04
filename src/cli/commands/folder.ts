@@ -2,15 +2,16 @@ import {CliCommand} from "../../interfaces/cli/CliCommand";
 import {BlenderLoader, SvgLoader, WavMaker} from "../../classes";
 import * as fs from "fs";
 import {ConfigLoader, LoadableConfig} from "./helper/ConfigLoader";
+import path from "path";
 
 const filewatcher = require('filewatcher');
 
-export const Blender: CliCommand = {
-    Call(file: string, options: BlenderOptions) {
+export const Folder: CliCommand = {
+    Call(folder: string, options: FolderOptions) {
         let isRunning = false;
 
         const configLoader = new ConfigLoader(() => {
-            return file + ".json";
+            return path.join(folder, "svs.config.json");
         }, options, ["watch"]);
 
         if (configLoader.write()) {
@@ -18,25 +19,18 @@ export const Blender: CliCommand = {
         }
 
         options = configLoader.load();
+
         async function Run() {
             isRunning = true;
 
-            const blendOptions = BlenderLoader.Run(file, options.selection, options.temp);
-            await new WavMaker(SvgLoader.RegisterFolder(options.temp))
+            await new WavMaker(SvgLoader.RegisterFolder(folder))
                 .make({
                     multiplier: parseFloat(options.multiplier),
                     threads: parseInt(options.threads),
                     outPath: options.out,
-                    fps: options.fps ? parseInt(options.fps) : blendOptions.fps,
+                    fps: parseInt(options.fps!),
                 });
             console.log(`[WavMaker] ${options.out} created`);
-
-
-            if (options.cleanup) {
-                fs.rmSync(options.temp, {recursive: true});
-                console.log(`[INFO] ${options.temp} deleted`);
-            }
-
 
             isRunning = false;
         }
@@ -44,34 +38,21 @@ export const Blender: CliCommand = {
         if (options.watch) {
             console.log("[FileWatcher] Started")
             const watcher = filewatcher();
-            watcher.add(file);
+            watcher.add(folder);
             watcher.on('change', function (file: string, stat: any) {
-                if (stat && !isRunning) {
-                    console.log("[FileWatcher] Changes Found")
-                    Run();
-                }
+                console.log("[FileWatcher] Changes Found")
+                Run();
             });
         }
         Run();
     },
 
-    Name: "blender",
+    Name: "folder",
 
     Arguments: [
-        {type: "<file path>", description: "path to the .blend file"},
+        {type: "<file path>", description: "path to the folder"},
     ],
     Options: [
-        {
-            type: "-s, --selection <object id>",
-            description: "the blender object to convert to vector uvs",
-            default: "Cube"
-        },
-        {
-            type: "-t, --temp <path>",
-            description: "Path to folder of temp svg files",
-            default: "./vector-uvs"
-        },
-
         {
             type: "-o, --out <path>",
             description: "Out path for wav file",
@@ -80,7 +61,8 @@ export const Blender: CliCommand = {
 
         {
             type: "--fps <number>",
-            description: "Frames per second (Default is value from blend file)",
+            description: "Frames per second",
+            default: "24"
         },
         {
             type: "-m, --multiplier <number>",
@@ -93,12 +75,6 @@ export const Blender: CliCommand = {
             default: "1"
         },
 
-
-        {
-            type: "-c, --cleanup",
-            description: "use flag to remove temp files after wav build",
-        },
-
         {
             type: "--watch",
             description: "watches for file changes and reruns on changes"
@@ -106,23 +82,20 @@ export const Blender: CliCommand = {
 
         {
             type: "-r, --read [path]",
-            description: "read a config file and use that as options (default: path to .blend file + .json => ./test.blend => ./test.blend.json)"
+            description: "read a config file and use that as options (default: path + /svs.config.json)"
         },
         {
             type: "-w, --write [path]",
-            description: "writes a config file to be used as options, will stop after writing file (default: path to .blend file + .json => ./test.blend => ./test.blend.json)"
+            description: "writes a config file to be used as options, will stop after writing file (default: path + /svs.config.json)"
         }
 
     ],
 }
 
-interface BlenderOptions extends LoadableConfig {
-    selection: string;
-    temp: string;
+interface FolderOptions extends LoadableConfig {
     out: string;
     fps?: string;
     multiplier: string;
-    cleanup: boolean;
     watch: boolean;
     threads: string;
 }

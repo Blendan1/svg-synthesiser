@@ -1,0 +1,8 @@
+{
+   "selection": "Cube",
+   "temp": "./vector-uvs",
+   "out": "spiral.wav",
+   "multiplier": "5",
+   "cleanup": true,
+   "threads": "6"
+}

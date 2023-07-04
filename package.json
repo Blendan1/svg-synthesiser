@@ -1,12 +1,13 @@
 {
-  "name": "svg-synthesyser",
+  "name": "svg-synthesiser",
   "version": "1.0.0",
   "description": "",
   "repository": {
-    "url": "https://github.com/Blendan1/svg-synthesyser.git"
+    "url": "https://github.com/Blendan1/svg-synthesiser.git"
   },
   "main": "index.js",
   "scripts": {
+    "postinstall": "tsc",
     "test": "node index.js"
   },
   "bin": {
