@@ -1,18 +1,24 @@
 {
-  "name": "svg-synthesyser",
+  "name": "svg-synthesiser",
   "version": "1.0.0",
   "description": "",
   "repository": {
-    "url": "https://github.com/Blendan1/svg-synthesyser.git"
+    "url": "https://github.com/Blendan1/svg-synthesiser.git"
   },
   "main": "index.js",
   "scripts": {
+    "postinstall": "tsc",
     "test": "node index.js"
+  },
+  "bin": {
+    "svs-cli": "./src/cli/svs-cli.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "commander": "^11.0.0",
     "convertpath": "^1.3.0",
+    "filewatcher": "^3.0.1",
     "progress": "^2.0.3",
     "svg-path-properties": "^1.2.0",
     "svg-points": "^6.0.1",

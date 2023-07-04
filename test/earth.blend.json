@@ -1,0 +1,8 @@
+{
+   "selection": "earth",
+   "temp": "./vector-uvs",
+   "out": "./earth.wav",
+   "multiplier": "4",
+   "cleanup": true,
+   "threads": "6"
+}

@@ -4,6 +4,7 @@ import {Point} from "svg-path-properties/dist/types/types";
 import ProgressBar from "progress";
 import {WavMakerOptions} from "../interfaces/WavMakerOptions";
 import * as fs from "fs";
+import {WavMakerHelper} from "./helper/WavHelper";
 
 export class WavMaker {
 
@@ -13,12 +14,34 @@ export class WavMaker {
     }
 
 
-    public make(options: WavMakerOptions) {
-        const wav = new WaveFile();
-
+    public async make(options: WavMakerOptions) {
         options = {...this.defaultOptions, ...options};
 
-        const {fps = 24, sampleRate = 41000, frameSpeed = 1} = options;
+        if(options.multiplier) {
+            options.sampleRate = options.sampleRate! * options.multiplier;
+            options.frameSpeed = options.frameSpeed! * options.multiplier;
+        }
+        const progress = new ProgressBar(":bar :percent :eta s", {total: this.svgList.length});
+
+        if(options.threads && options.threads > 1) {
+            const threads: Promise<void>[] = [];
+
+            const take = Math.ceil(this.svgList.length / options.threads);
+            let skip = 0;
+
+            while (skip < this.svgList.length) {
+                threads.push(SvgLoader.LoadAsync(this.svgList.slice(skip, skip + take), progress));
+                skip += take;
+            }
+
+            await Promise.all(threads);
+        }
+
+        return this.getBuffer(options, options.threads && options.threads > 1 ? undefined : progress);
+    }
+
+    private getBuffer(options: WavMakerOptions, progress?: ProgressBar) {
+        const wav = new WaveFile();
 
         const helper = new WavMakerHelper(options);
 
@@ -27,23 +50,21 @@ export class WavMaker {
             r: []
         };
 
-        const timePerFrame = 1 / fps;
-        const timePerSample = 1 / sampleRate;
+        const timePerFrame = 1 / options.fps!;
+        const timePerSample = 1 / options.sampleRate!;
 
         let time = 0;
 
         const points: { time: number, point: Point }[] = [];
         let biggestX = 0, biggestY = 0;
 
-        const progress = new ProgressBar(":bar :percent :eta s", {total: this.svgList.length});
 
         this.svgList.forEach((svg, i) => {
             let frameTime = time % timePerFrame;
             const frame = svg.loadSvg();
-            const frameNext = this.svgList[i + 1]?.loadSvg();
 
             while (frameTime < timePerFrame) {
-                let percent = ((frameTime / timePerFrame) * frameSpeed);
+                let percent = ((frameTime / timePerFrame) * options.frameSpeed!);
 
                 // makes it loop and reverse 0 -> 1 -> 0 -> 1 -> ...
                 percent = Math.floor(percent) % 2 ? percent % 1 : 1 - (percent % 1);
@@ -65,7 +86,7 @@ export class WavMaker {
             }
 
             svg.dispose();
-            progress.tick();
+            progress?.tick();
         });
 
         const dividerX = helper.normalizeScale(biggestX);
@@ -98,7 +119,7 @@ export class WavMaker {
             };
         });
 
-        wav.fromScratch(2, sampleRate, "16", [
+        wav.fromScratch(2, options.sampleRate!, "16", [
             samples.l,
             samples.r,
         ]);
@@ -109,48 +130,4 @@ export class WavMaker {
 
         return buffer;
     }
-}
-
-class WavMakerHelper {
-
-    public constructor(private options: WavMakerOptions) {
-    }
-
-    public calculateSample(cord: number, time: number, divider: number) {
-        if (time == 0) {
-            return 0;
-        }
-
-        return this.frequencyToSample(((cord / divider) - 1) * divider);
-    }
-
-
-    public frequencyToSample(value: number) {
-        return (((Math.pow(2, 16) - 1)) * Math.sin((Math.PI * 2) * value / this.options.sampleRate!)) * 10
-    }
-
-    public calculateBetweenFrequency(a: Point, b: Point, divider: number) {
-        a.x = ((a.x / divider) - 1);
-        b.x = ((b.x / divider) - 1);
-        const distance = Math.hypot(b.x - a.x, b.y - a.y);
-        const speed = distance / (b.x - a.x);
-        const period = distance / speed;
-        return 1 / period;
-    }
-
-    /**
-     * Normalizes a scale to values from 0 to 2
-     * @param max
-     * @private
-     */
-    public normalizeScale(max: number) {
-        let value = max, divider = 0;
-        while (value > 2) {
-            divider++;
-            value = max / divider;
-        }
-
-        return divider
-    }
-
 }

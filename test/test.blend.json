@@ -1,0 +1,8 @@
+{
+   "selection": "Cube.001",
+   "temp": "./vector-uvs",
+   "out": "./test.wav",
+   "multiplier": "5",
+   "cleanup": true,
+   "threads": "6"
+}
